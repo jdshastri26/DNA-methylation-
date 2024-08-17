@@ -1,0 +1,116 @@
+
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+# Install required Bioconductor packages
+BiocManager::install(c("minfi", "limma", "IlluminaHumanMethylationEPICmanifest", "IlluminaHumanMethylationEPICanno.ilm10b4.hg19"))
+
+# Load the libraries
+library(minfi)
+library(limma)
+library(IlluminaHumanMethylationEPICmanifest)
+library(IlluminaHumanMethylationEPICanno.ilm10b4.hg19)
+
+
+# Load IDAT files
+rgSet <- read.metharray.exp(targets = "targets.csv")
+
+# Preprocess the data using SWAN normalization
+mSet <- preprocessSWAN(rgSet)
+
+# Calculate beta values (proportion of methylation)
+betaValues <- getBeta(mSet)
+
+# Perform quality control
+qc <- qcReport(mSet)
+
+# Visualize the distribution of beta values
+densityPlot(betaValues, main = "Beta Values Distribution")
+
+
+# Define the experimental design
+design <- model.matrix(~ group, data = pData(mSet))
+
+# Fit the model
+fit <- lmFit(betaValues, design)
+
+# Apply empirical Bayes smoothing
+fit <- eBayes(fit)
+
+# Extract differentially methylated positions (DMPs)
+topTable <- topTable(fit, coef = "group", number = Inf, adjust.method = "BH", p.value = 0.05)
+
+# Visualize top DMPs
+plotDMP(betaValues, topTable)
+
+
+BiocManager::install(c("SNPRelate", "gdsfmt", "GenomicRanges", "VariantAnnotation"))
+
+# Load the libraries
+library(SNPRelate)
+library(gdsfmt)
+library(GenomicRanges)
+library(VariantAnnotation)
+
+# Convert VCF file to GDS format
+vcf.fn <- "input.vcf"
+gds.fn <- "output.gds"
+snpgdsVCF2GDS(vcf.fn, gds.fn)
+
+# Open the GDS file
+genofile <- snpgdsOpen(gds.fn)
+
+# Perform basic SNP summary
+summary <- snpgdsSummary(genofile)
+
+# Perform linkage disequilibrium (LD) analysis
+ld <- snpgdsLDpair(genofile, snp.id = "rs1234")
+
+
+# Perform PCA
+pca <- snpgdsPCA(genofile, num.thread = 2)
+
+# Plot PCA
+plot(pca$eigenvect[, 1], pca$eigenvect[, 2], col = "blue", xlab = "PC1", ylab = "PC2")
+
+
+
+BiocManager::install("GWASTools")
+
+# Load the library
+library(GWASTools)
+
+# Load phenotype and genotype data
+genoData <- GdsGenotypeReader("genotype.gds")
+scanAnnot <- ScanAnnotationDataFrame("phenotype.csv")
+
+# Create GenotypeData object
+genotypeData <- GenotypeData(genoData, scanAnnot = scanAnnot)
+
+
+
+
+# Fit a linear model
+assoc <- assocRegression(genotypeData, outcome = "trait", covar = c("age", "sex"), family = "binomial")
+
+# Adjust for multiple testing using Bonferroni correction
+assoc$adj.p <- p.adjust(assoc$pval, method = "bonferroni")
+
+# Extract significant SNPs
+sig.snps <- assoc[assoc$adj.p < 0.05, ]
+
+
+# Manhattan plot
+manhattanPlot(assoc$pval, snp.pos = assoc$position, snp.chr = assoc$chromosome)
+
+# QQ plot
+qqPlot(assoc$pval)
+
+
+Conclusion
+Each of these workflows is tailored to specific types of genetic analysis:
+
+DNA Methylation Analysis: Focuses on analyzing methylation patterns across the genome.
+SNP Analysis: Involves identifying and analyzing SNPs, often in the context of population genetics.
+GWAS: Aims to find associations between SNPs and traits/diseases across the genome.
